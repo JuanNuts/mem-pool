@@ -5,7 +5,7 @@
             "name": "Debug C Project",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/main",
+            "program": "${workspaceFolder}/bin/tests",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

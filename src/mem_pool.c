@@ -12,25 +12,13 @@ struct block_node
     struct block_node *next;    // Pointer to the next node
 };
 
-static struct block_node *block_node_new(void *offset)
-{
-    struct block_node *node = malloc(sizeof(struct block_node));
-    if (!node) return NULL;
-
-    node->offset = offset;
-    node->busy = false;
-    node->next = NULL;
-
-    return node;
-}
-
 struct mem_pool
 {
     void *origin;                   // First address of the memory block
     size_t block_sz;                // Size of a memory block
     size_t n_blocks;                // Number of memory blocks
 
-    struct block_node* *blocks;     // Array of block nodes
+    struct block_node *blocks;      // Array of block nodes
     struct block_node *next_block;  // Next block to allocate: head of the dynamic stack of nodes
 };
 
@@ -40,7 +28,7 @@ mem_pool_t *mem_pool_new(size_t block_sz, size_t n_blocks)
     if (!pool) return NULL;
 
     pool->block_sz = block_sz;
-    pool->n_blocks = 0;
+    pool->n_blocks = n_blocks;
     pool->origin = NULL;
     pool->blocks = NULL;
     pool->next_block = NULL;
@@ -51,23 +39,18 @@ mem_pool_t *mem_pool_new(size_t block_sz, size_t n_blocks)
         return NULL;
     }
 
-    if (!(pool->blocks = calloc(n_blocks, sizeof(struct node*))))
+    if (!(pool->blocks = calloc(n_blocks, sizeof(struct block_node))))
     {
         mem_pool_destroy(pool);
         return NULL;
     }
 
     for (size_t i = 0; i < n_blocks; i++)
-    if (!(pool->blocks[i] = block_node_new((uint8_t*)(pool->origin) + i * block_sz)))
     {
-        mem_pool_destroy(pool);
-        return NULL;
-    }
-    else
-    {
-        pool->n_blocks++;
-        pool->blocks[i]->next = pool->next_block;
-        pool->next_block = pool->blocks[i];
+        pool->blocks[i].offset = (uint8_t*)(pool->origin) + i * block_sz;
+        pool->blocks[i].busy = false;
+        pool->blocks[i].next = pool->next_block;
+        pool->next_block = &pool->blocks[i];
     }
 
     return pool;
@@ -76,14 +59,7 @@ mem_pool_t *mem_pool_new(size_t block_sz, size_t n_blocks)
 void mem_pool_destroy(mem_pool_t *pool)
 {
     if (!pool) return;
-
-    if (pool->blocks)
-    {
-        for (size_t i = 0; i < pool->n_blocks; i++) 
-            free(pool->blocks[i]);
-        free(pool->blocks);
-    }
-
+    if (pool->blocks) free(pool->blocks);
     if (pool->origin) free(pool->origin);
     free(pool);
 }
@@ -112,7 +88,7 @@ int mem_pool_free(mem_pool_t *pool, void *ptr)
     if (diff % pool->block_sz != 0)
         return -1;
 
-    struct block_node *node = pool->blocks[diff / pool->block_sz];
+    struct block_node *node = pool->blocks + (diff / pool->block_sz);
     if (!node->busy)
         return -1;
         
